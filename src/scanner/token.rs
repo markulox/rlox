@@ -46,6 +46,7 @@ pub enum TokenNano {
     EOF,
 }
 
+#[derive(Debug)]
 pub enum TokenType {
     LeftParen,
     RightParen,
@@ -94,6 +95,7 @@ pub enum TokenType {
 
 pub type OptionalAny = Option<Box<dyn Any>>;
 
+#[derive(Debug)]
 pub struct Token {
     r#type: TokenType,
     lexeme: String,

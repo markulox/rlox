@@ -8,18 +8,19 @@ use std::{
 mod scanner;
 use scanner::Scanner;
 mod err;
-use err::{report::error, Err};
+use err::{scan::ScanErr, ErrReport};
 
 fn run_file(file_name: &String) -> u8 {
     println!("Run file name: {}", file_name);
     0
 }
 
-fn run(line: &String) -> Option<Box<dyn Err>> {
-    let mut scanner = Scanner::new(line.clone());
+fn run(line: &String) -> Option<Box<dyn ErrReport>> {
+    let mut scanner = Scanner::new(String::from(line.trim()).clone());
     let token_vec = scanner.scan_tokens();
     match token_vec {
         Ok(tknv) => {
+            dbg!(tknv);
             None
         },
         Result::Err(e) => Some(Box::new(e)),
@@ -38,8 +39,7 @@ fn run_promt() -> u8 {
                 }
                 // Perform parsing
                 if let Some(e) = run(&buffer) {
-                    let (line, msg) = e.as_ref().report_str();
-                    error(line, &msg);
+                    e.as_ref().report();
                 }
                 buffer.clear(); // After executing, clear the buffer
             }

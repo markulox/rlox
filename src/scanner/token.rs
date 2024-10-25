@@ -46,7 +46,7 @@ pub enum TokenNano {
     EOF,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum TokenType {
     LeftParen,
     RightParen,

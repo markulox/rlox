@@ -1,6 +1,9 @@
-use std::{any::Any, collections::VecDeque};
+use std::{any::Any, collections::VecDeque, process::id};
+
+mod keywords;
 
 mod token;
+use keywords::KEYWORDS;
 use token::{Token, TokenType};
 
 use crate::err::{self, report::error, scan::ScanErr, ErrReport};
@@ -23,12 +26,19 @@ impl Scanner {
         }
     }
 
-    pub fn scan_tokens(&mut self) -> Result<&VecDeque<Token>, ScanErr> {
+    pub fn scan_tokens(&mut self) -> Result<&VecDeque<Token>, Vec<ScanErr>> {
+        let mut err_vec = Vec::new();
         while !self.is_at_end() {
             self.start = self.current;
-            self.scan_token()?;
+            if let Err(e) = self.scan_token() {
+                err_vec.push(e);
+            }
         }
-        Ok(&self.tokens)
+        if err_vec.len() > 0 {
+            Err(err_vec)
+        } else {
+            Ok(&self.tokens)
+        }
     }
 
     fn is_at_end(&self) -> bool {
@@ -95,7 +105,42 @@ impl Scanner {
                 };
                 Ok(self.add_token(t, None))
             }
-            _ => Err(ScanErr::UnknownChar(self.line, c)),
+            '/' => {
+                // Add support for multiline comment
+                match self.peek() {
+                    '/' => {
+                        while self.peek() != '\n' && !self.is_at_end() {
+                            _ = self.advance();
+                        }
+                        return Ok(());
+                    },
+                    '*' => {
+                        self.multiline_comment();
+                        Ok(())
+                    },
+                    _ => {
+                        Ok(self.add_token(TokenType::Slash, None))
+                    }
+                }
+            }
+            '"' => {
+                self.string()
+            }
+            ' ' | '\r' | '\t' => Ok(()), // Consuming a meaningless char: Just do nothing here
+            '\n' => {
+                self.line = self.line + 1;
+                Ok(())
+            }
+            '0' ..= '9' => { // Numeric case
+                self.number()
+            }
+            'a' ..= 'z' | 'A' ..= 'Z' | '_' => {
+                self.identifier();
+                Ok(())
+            }
+            _ => {
+                return Err(ScanErr::UnknownChar(self.line, c));
+            },
         }
     }
 
@@ -117,6 +162,93 @@ impl Scanner {
             return true;
         } else {
             return false;
+        }
+    }
+
+    fn peek(&self) -> char {
+        self.source.chars().nth(self.current).unwrap_or('\0')
+    }
+
+    fn peek_next(&self) -> char {
+        self.source.chars().nth(self.current+1).unwrap_or('\0')
+    }
+
+    fn string(&mut self) -> Result<(), ScanErr> {
+        while self.peek() != '"' && !self.is_at_end() {
+            if self.peek() == '\n' {
+                self.line += 1;
+            }
+            self.advance();
+        }
+
+        if self.is_at_end() {
+            return Err(ScanErr::UnterminatedString(self.line));
+        }
+        self.advance();
+        // self.start+1 and self.current-1 to trim out the '"'
+        let str_val = String::from(self.source[self.start+1..self.current-1].as_mut());
+        self.add_token(TokenType::String, Some(Box::new(str_val)));
+        // Consume the '"' character (end of string)
+        Ok(())
+    }
+
+    fn number(&mut self) -> Result<(), ScanErr> {
+        while self.peek().is_numeric() {
+            self.advance();
+        }
+        if self.peek() == '.' && self.peek_next().is_numeric() {
+            self.advance();
+            while self.peek().is_numeric(){
+                self.advance();
+            }
+        }
+        let str_val = String::from(self.source[self.start..self.current].as_mut());
+        let num_val = str_val.parse::<f64>()
+            .map_err(|_| ScanErr::InvalidNumber(self.line, str_val))?;
+        self.add_token(TokenType::Number, Some(Box::new(num_val)));
+        Ok(())
+    }
+
+    fn identifier(&mut self) {
+        while self.peek().is_alphanumeric() || self.peek() == '_' {
+            self.advance();
+        }
+        let idntf = String::from(self.source[self.start..self.current].as_mut());
+        let token_type: TokenType = if let Some(tt) = KEYWORDS.get(idntf.as_str()) {
+            tt.clone()
+        } else {
+            TokenType::Identifier
+        };
+        self.add_token(token_type, None);
+    }
+
+    fn multiline_comment(&mut self) {
+        let mut comment_count: usize = 1;
+        self.advance(); // Consume the *
+        while comment_count != 0 && !self.is_at_end() {
+            let c = self.peek();
+            println!("char='{c}'");
+            match c {
+                '/' => { // Start of nested comment
+                    if self.peek_next() == '*' {
+                        self.advance();
+                        comment_count += 1;
+                    }
+                    self.advance();
+                }, 
+                '*' => {
+                    if self.peek_next() == '/' {
+                        self.advance();
+                        comment_count -= 1;
+                    }
+                    self.advance();
+                }, 
+                '\n' => {
+                    self.line += 1;
+                    self.advance();
+                },
+                _ => { self.advance(); }
+            }
         }
     }
 }

@@ -1,29 +1,40 @@
 use std::{
-    collections::VecDeque,
-    env,
-    io::{stdin, stdout, BufRead, Write},
-    process::ExitCode
+    collections::VecDeque, env, f32::consts::E, fs, io::{stdin, stdout, BufRead, Write}, process::ExitCode
 };
 
 mod scanner;
 use scanner::Scanner;
 mod err;
-use err::{scan::ScanErr, ErrReport};
+use err::ErrReport;
 
 fn run_file(file_name: &String) -> u8 {
     println!("Run file name: {}", file_name);
-    0
+    let f_read_result = fs::read_to_string(file_name);
+    match f_read_result {
+        Ok(f_contents) => {
+            if let Err(_) = run(&f_contents) {
+                1
+            } else {
+                0
+            }
+        }, 
+        Err(_) => 1 as u8
+    }
 }
 
-fn run(line: &String) -> Option<Box<dyn ErrReport>> {
+fn run(line: &String) -> Result<(),Box<dyn ErrReport>> {
     let mut scanner = Scanner::new(String::from(line.trim()).clone());
-    let token_vec = scanner.scan_tokens();
-    match token_vec {
-        Ok(tknv) => {
-            dbg!(tknv);
-            None
+    match scanner.scan_tokens() {
+        Ok(token_vec) => {
+            dbg!(token_vec);
+            Ok(())
         },
-        Result::Err(e) => Some(Box::new(e)),
+        Err(errs) => {
+            for e_err in errs {
+                e_err.report();
+            }
+            Ok(())
+        },
     }
 }
 
@@ -38,7 +49,7 @@ fn run_promt() -> u8 {
                     return 0;
                 }
                 // Perform parsing
-                if let Some(e) = run(&buffer) {
+                if let Err(e) = run(&buffer) {
                     e.as_ref().report();
                 }
                 buffer.clear(); // After executing, clear the buffer

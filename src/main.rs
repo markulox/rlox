@@ -6,6 +6,7 @@ mod scanner;
 use scanner::Scanner;
 mod err;
 use err::ErrReport;
+mod expr;
 
 fn run_file(file_name: &String) -> u8 {
     println!("Run file name: {}", file_name);

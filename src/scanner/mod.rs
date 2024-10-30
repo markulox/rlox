@@ -1,8 +1,7 @@
 use std::{any::Any, collections::VecDeque, process::id};
 
 mod keywords;
-
-mod token;
+pub mod token;
 use keywords::KEYWORDS;
 use token::{Token, TokenType};
 
